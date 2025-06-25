@@ -1,0 +1,226 @@
+/* MainWidget */
+QLabel{
+	font-size:16px;
+	color:white;
+    font-family: 'Roboto';
+}
+QToolButton{
+    background:rgb(38,38,38);
+    border:none;
+	font-size:16px;
+	color: white;
+    font-family: 'Roboto';
+}
+
+QSlider::groove:horizontal{
+    border: none;
+    height: 8px; 
+    background: rgb(78,78,78);
+	border-radius: 4px;
+    margin: 2px 0;
+}
+QSlider::handle {
+    background: rgba(255,255,255,0.85);
+    width: 24px;
+	margin: -8px 0;
+    border-radius: 2px;
+}
+
+#content_widget{
+	background:rgb(52,52,52);
+    /* background:red; */
+}
+
+#widget{
+    background-color: black;
+}
+
+#ctrl_widget{
+    background-color: dimgray;
+}
+
+/* TipWidget */
+#TipLabel{
+    background-color: dimgray;
+    border-radius: 4px;
+}
+
+#value_label{
+    color:white;
+    font-size : 16px;
+}
+
+#tip_label{
+    color:white;
+    font-size : 14px;
+}
+
+#logo_label{
+    background: transparent;
+    border:none;
+    border-image: url(ui_layer/UI/imgs/logo.png)
+}
+
+#home_btn, #robot_btn, #tools_btn{
+    border: none;
+	background: rgb(38,38,38);
+    color: rgba(255,255,255, 0.85);
+    font-size: 24px;
+}
+
+#home_btn:checked, #robot_btn:checked, #tools_btn:checked{
+	background: rgb(101,101,101);
+	border:none;
+	border-bottom:4px solid rgb(0,156,244);
+	border-top-right-radius:16px;
+    font-family: "Roboto";
+    font-weight: 500;
+    color: white;
+}
+
+#tool_bar, #nav_widget{
+	background:rgb(38,38,38);
+}
+
+#next_btn{
+	/*background:rgba(255,255,255,0.15);*/
+	background:transparent;
+	background-image:url(ui_layer/UI/imgs/next.png);
+}
+#next_btn:hover{
+	/*background:rgba(255,255,255,0.15);*/
+	background:transparent;
+	background-image:url(ui_layer/UI/imgs/next-1.png);
+}
+
+#back_btn{
+	background:transparent;
+	background-image:url(ui_layer/UI/imgs/back.png);
+}
+
+#user_btn{
+	background:transparent;
+	background-image:url(ui_layer/UI/imgs/user.png);
+}
+
+#ValueTipWidget #value_widget{
+    background: rgba(0,0,0,0.25)
+}
+
+#ValueTipWidget QLabel{
+    font-family: "Roboto";
+    font-size: 20px;
+    color: rgba(255,255,255,0.65);
+}
+
+#ValueTipWidget #dis_label,
+#ValueTipWidget #dis_y_label,
+#ValueTipWidget #dis_z_label,
+#ValueTipWidget #angel_label{
+    font-size: 32px;
+    font-weight: 500;
+    color: rgb(255,255,255);
+}
+
+#ValueTipWidget #dis_widget,
+#ValueTipWidget #dis_y_widget,
+#ValueTipWidget #dis_z_widget,
+#ValueTipWidget #deg_widget{
+    background: transparent;
+    border-bottom: 1px solid rgb(71,71,71);
+}
+
+#home_label{
+    font-size: 32px;
+    font-weight: 500;
+    color: white;
+}
+
+#tip_widget{
+    background: rgb(38,38,38);
+    border-bottom: 4px solid rgb(52,52,52);
+}
+
+#ZoomBar{
+    background: rgb(101,101,101);
+    border: none;
+}
+#ZoomBar #widget{
+    background: transparent;
+    border: none;
+}
+
+#ZoomBar QLabel{
+    color: rgba(255,255,255,0.85);
+    font-family: "Roboto";
+    font-size: 14px;
+    padding-left: 5px;
+    background: transparent;
+}
+#ZoomBar #add_btn{
+    border: none;
+    background-image: url(ui_layer/UI/imgs/add.png);
+}
+
+#ZoomBar #minus_btn{
+    border: none;
+    background-image: url(ui_layer/UI/imgs/minus.png);
+}
+
+#ColorDialog{
+	border: none;
+	background:rgb(52,52,52);
+}
+
+#ColorDialog QLabel{
+	color:rgba(255,255,255,0.85);
+	font-size:10px;
+	font-family: "Roboto";
+    font-weight: 500;
+	border:none;
+	background: transparent;
+}
+
+#ColorDialog #close_btn{
+	border:none;
+	background:transparent;
+}
+
+#ColorDialog #apply_btn{
+	border:none;
+	background:transparent;
+    border-radius: 2px;
+}
+
+#ColorDialog #sv_widget, #v_widget{
+	border:none;
+	background:transparent;
+}
+
+#ColorDialog #hex_label{
+	border-radius:2px;
+    background: #454545;
+}
+
+#ColorDialog #r_label{
+	border-top-left-radius:2px;
+	border-bottom-left-radius:2px;
+    background: #454545;
+}
+
+#ColorDialog #g_label{
+    background: #454545;
+}
+
+#ColorDialog #b_label{
+	border-top-right-radius:2px;
+	border-bottom-right-radius:2px;
+    background: #454545;
+}
+
+/*
+# Button style
+border:none;
+background-color: qlineargradient(spread:pad, x1:0.5, y1:1, x2:0.458, y2:0, stop:0 rgba(0, 129, 201, 255), stop:0.49 rgba(0, 163, 255, 255),stop:1 rgba(88, 195, 255, 255));
+color:white;
+*/
