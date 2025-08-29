@@ -5,7 +5,7 @@ from detect_balls2 import detect_spheres_from_dicom
 from cal_math import match_balls_by_geometry, rigidTransform3D, transform3d
 
 
-npz_path = "D:/VSCODES/DetectPoints/精度验证/CT-MP25075-250605-8_2025-06-24_16_15_20.npz"
+npz_path = "c:/Users/huang/Desktop/npz_path_20250721"
 
 
 class AppPlanVeri:
@@ -53,6 +53,7 @@ class AppPlanVeri:
         # 重新计算T0
         T_model_to_ct, _ = rigidTransform3D(model_steel.T, ct_steel_balls.T)
         ct_light_balls = transform3d(model_light, T_model_to_ct)
+        # 因为是rom坐标下光球的位置，所以是光球到ct的变换矩阵，这么说也是没有问题的
         T1, _ = rigidTransform3D(rom_light.T, ct_light_balls.T)
         T0 = np.linalg.inv(T1)
         print(f"recal data:")
@@ -95,6 +96,7 @@ class AppPlanVeri:
         needle_length = self._data_dict.get("op_tool_length")
         T0, T1 = self.find_steel_balls_and_cal_t0()
         T_robot_to_ct = (T1 @ np.linalg.inv(T_spine) @ T_robot)
+        # 这个中间有隐藏公式，所以是对的，隐藏掉了rom -> robot的换算，直接到ct 正常是到robot，然后到ct
         ct_tail_x = T_robot_to_ct[:3, :3] @ np.array(tail_x)
         ct_tail_p = transform3d(np.array(tail_p).reshape(1, 3), T_robot_to_ct)
         ct_needle = ct_tail_p - ct_tail_x * needle_length

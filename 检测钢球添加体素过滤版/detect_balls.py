@@ -302,8 +302,8 @@ def detect_spheres_from_dicom(dicom_path: str, num_spheres: int = 3, r_range: fl
 if __name__ == '__main__':
 
     # 验算不出来
-    path1 = "C:/Users/YangLiangZhu/Desktop/泰州精度验证/Tai0605/1/CT-MP25075-250605-yan/S3010"
-    spheres = detect_spheres_from_dicom(path1,
+    dicom_path1 = "C:/Users/huang/Downloads/泰州精度验证/泰州精度验证/Tai0606/5/CT-MP25080-250606-gui/S6010"
+    spheres = detect_spheres_from_dicom(dicom_path1,
                                         num_spheres=10)
     print("Detected spheres:")
     print(spheres)

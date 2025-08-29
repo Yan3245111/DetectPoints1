@@ -1,3 +1,4 @@
+from numpy.linalg import svd, norm
 from copy import deepcopy
 import taichi as ti
 import numpy as np
@@ -6,24 +7,25 @@ import os
 
 ti.init(arch=ti.cpu, kernel_profiler=False, device_memory_GB=2)
 
+
 """
 DataLlj-获取至少3个光球的位置
 2-根据实际模型计算第四个光球的位置 都是相对于CT的坐标
 3-然后要对应1234哪个球是哪个球，定义一个原点光球，拿到相对位置xyz，还要计算其旋转矩阵
 4-将spine-nav/spine-service/calibration.py 里的t0进行替换即可
 """
-def detect_spheres_from_dicom(data, pixel_spacing, thickness, pos_ori, num_spheres, r_range: float = 2.5, rlen: int = 0,
-                              rmax: int = 7):
+def detect_spheres_from_dicom(data, pixel_spacing, thickness, pos_ori, output_points: int = 3, r_range: float = 2.5, rlen: int = 0,
+                              rmax: int = 5):
 
 
     B = 400000      # 可能得光球边界点
-    minval = 3000 # 二值化强度阈值
     N = 50         # xyz投票数
     minvote = 30   # 局部最大投票值
     pNum = 300     # 候选球个数
 
+    max_points_per_sphere = 500
 
-    vote_points = ti.field(dtype=ti.i32, shape=(N, N, N, 400,  3))
+    vote_points = ti.field(dtype=ti.i32, shape=(N, N, N, max_points_per_sphere,  3))
     vote_counts = ti.field(dtype=ti.i32, shape=(N, N, N))
 
 
@@ -36,14 +38,20 @@ def detect_spheres_from_dicom(data, pixel_spacing, thickness, pos_ori, num_spher
     xp = ti.field(dtype=ti.i32, shape=N)
     yp = ti.field(dtype=ti.i32, shape=N)
     zp = ti.field(dtype=ti.i32, shape=N)
+    
+    data = np.flip(data, axis=0)
+    minval = np.max(data) * 0.7
 
     x, y, z = data.shape
-
     z_range = r_range
     r_range = int(r_range / pixel_spacing[0])
     z_range = int(r_range / thickness)
     rlen = int(rlen / pixel_spacing[0])
     rmax = int(rmax / pixel_spacing[0])
+    lps_to_ras = np.array([[-1, 0, 0],
+                    [0, -1, 0],
+                    [0, 0, 1]])
+    pos_ori = pos_ori @ lps_to_ras
 
 
     img_data = ti.field(dtype=ti.i32, shape=(x, y, z))
@@ -63,33 +71,34 @@ def detect_spheres_from_dicom(data, pixel_spacing, thickness, pos_ori, num_spher
     @ti.kernel
     def vote_XYZ():
         for j, k in ti.ndrange(y, z):
-            tmp = 0
+            tmp = -1
             for i in range(x - 1):
                 if (img_data[i, j, k] > minval) ^ (img_data[i + 1, j, k] > minval):
                     index = ti.atomic_add(head_b[None], 1)
                     bon_x[index] = i
                     bon_y[index] = j
                     bon_z[index] = k
-                    if tmp == 0:
+                    if tmp == -1:
                         tmp = i
                     else:
-                        if abs(tmp - i) <= rmax * 2:
-                            cx = ti.ceil((tmp + i) / 2.0, int)
+                        if 3.5 <= abs(i - tmp) <= 7:  # 直径判断
+                            cx = ti.round((tmp + i) / 2.0, int)  # 这个地方投的280比283多一百多票
                             xvote[cx] += 1
                             tmp = i
+
 
         for i in range(B):
             if bon_x[i] != 0:
                 for j in range(B):
-                    if bon_x[i] == bon_x[j] and bon_z[i] == bon_z[j] and ti.abs(bon_y[j] - bon_y[i]) < 10:
-                        cx = ti.ceil((bon_y[j] + bon_y[i]) / 2.0, int)
+                    if bon_x[i] == bon_x[j] and bon_z[i] == bon_z[j] and ti.abs(bon_y[j] - bon_y[i]) <= rmax:
+                        cx = ti.round((bon_y[j] + bon_y[i]) / 2.0, int)
                         yvote[cx] += 1
 
         for i in range(B):
             if bon_x[i] != 0:
                 for j in range(B):
-                    if bon_x[i] == bon_x[j] and bon_y[i] == bon_y[j] and ti.abs(bon_z[j] - bon_z[i]) < 10:
-                        cx = ti.ceil((bon_z[j] + bon_z[i]) / 2.0, int)
+                    if bon_x[i] == bon_x[j] and bon_y[i] == bon_y[j] and ti.abs(bon_z[j] - bon_z[i]) <= rmax:
+                        cx = ti.round((bon_z[j] + bon_z[i]) / 2.0, int)
                         zvote[cx] += 1
 
     @ti.kernel
@@ -164,50 +173,23 @@ def detect_spheres_from_dicom(data, pixel_spacing, thickness, pos_ori, num_spher
 
     # Run pipeline
     vote_XYZ()
-    print("bon_x")
-    print(bon_x.to_numpy())
-    print("bon_y")
-    print(bon_y.to_numpy())
-    print("bon_z")
-    print(bon_z.to_numpy())
-    print("xvote")
-    print(xvote.to_numpy())
-    print("yvote")
-    print(yvote.to_numpy())
-    print("zvote")
-    print(zvote.to_numpy())
     localMax()
-    print("xp")
-    print(xp.to_numpy())
-    print("yp")
-    print(yp.to_numpy())
-    print("zp")
-    print(zp.to_numpy())
     vote_R()
     rpolling()
     cirlocMax()
 
-    rpoll_np = rpoll.to_numpy()
-
     vote_counts_np = vote_counts.to_numpy()  # 多少个边界点
     vote_points_np = vote_points.to_numpy()  # 对应的边界点
 
-    # 按投票数降序排序，获取最高投票的圆心索引
-    sorted_indices = np.argsort(rpoll_np[:, 4])[::-1]  # 按第5列(投票数)降序排列
-
     # Collect top spheres
-    points = np.empty((num_spheres, 5), dtype=np.float32)
-    for i in range(num_spheres):
+    points = np.empty((output_points, 5), dtype=np.float32)
+    for i in range(output_points):
         tmp = 0
         for j in range(pNum):
             if rpoll[j][4] > rpoll[tmp][4]:
                 tmp = j
         points[i] = [rpoll[tmp][k] for k in range(5)]
         rpoll[tmp][4] = 0
-    lps_to_ras = np.array([[-1, 0, 0],
-                        [0, -1, 0],
-                        [0, 0, 1]])
-    pos_ori = pos_ori @ lps_to_ras
 
     center_to_boundaries = {}
     for o in range(N):
@@ -225,45 +207,70 @@ def detect_spheres_from_dicom(data, pixel_spacing, thickness, pos_ori, num_spher
                     # 添加边界点到该圆心的列表
                     center_to_boundaries[center].append(boundary)
 
-    # print(center_to_boundaries)
-    # print(points)
-
     points_bounds = dict()
     points_bounds1 = dict()
 
-    for i in range(num_spheres):
+    for i in range(output_points):
         x, y, z, r, score = points[i]
         p_center = (x, y, z)
         if p_center in center_to_boundaries:
-            # print(f"得票数={score}")
-            # print(f"圆心 {p_center} 的边界点：{len(center_to_boundaries[p_center])}")
+            print(f"得票数={score}")
+            print(f"圆心 {p_center} 的边界点：{len(center_to_boundaries[p_center])}")
             points_bounds[i] = [p_center, center_to_boundaries[p_center], r, score]
             points_bounds1[p_center] = list(center_to_boundaries[p_center])
         else:
             print(f"圆心 {p_center} 未找到匹配的边界点")
+
+    def fit_circle_3d(points):
+        points = np.array(points)
+        centroid = points.mean(axis=0)
+        # 去中心化
+        centered = points - centroid
+        # 步骤 1：SVD 拟合平面
+        _, _, vh = svd(centered)
+        normal = vh[2]  # 平面法向量
+        # 步骤 2：构建局部 2D 坐标系（u, v）
+        u = vh[0]
+        v = vh[1]
+        # 步骤 3：将 3D 点投影到局部平面
+        projected_2d = np.array([[np.dot(p - centroid, u), np.dot(p - centroid, v)] for p in points])
+        # 步骤 4：2D 圆拟合
+        xu, yu = projected_2d[:, 0], projected_2d[:, 1]
+        A = np.c_[2 * xu, 2 * yu, np.ones(len(xu))]
+        b = xu**2 + yu**2
+        sol, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
+        uc, vc, c = sol
+        r = np.sqrt(c + uc**2 + vc**2)
+        # 步骤 5：局部坐标转回世界坐标
+        center3d = centroid + uc * u + vc * v
+        return [round(i) for i in center3d], r, normal
     
-    # for key, value in points_bounds1.items():
-    #     print(key)
-    #     print(value)
+    output_points1 = list()
+    
+    for center, one_points in points_bounds1.items():
+        center3d, r, normal = fit_circle_3d(points=one_points)
+        output_points1.append(center3d)
 
-
-    points_copy = deepcopy(points)
-    points[:, 0] = points_copy[:, 2] * pixel_spacing[0] * -1 + pos_ori[0]
-    points[:, 1] = points_copy[:, 1] * pixel_spacing[1] + pos_ori[1]
-    points[:, 2] = points_copy[:, 0] * thickness * -1 + pos_ori[2]
-    return points, points_bounds1
+    for i in range(len(output_points1)):
+        z_index = output_points1[i][0]
+        y_index = output_points1[i][1]
+        x_index = output_points1[i][2]
+        
+        x_ras = x_index * pixel_spacing[0] * -1 + pos_ori[0]
+        y_ras = y_index * pixel_spacing[1] + pos_ori[1]
+        z_ras = z_index * thickness * -1 + pos_ori[2]
+        output_points1[i] = [x_ras, y_ras, z_ras]
+    return output_points1
 
 
 
 if __name__ == '__main__':
-    
-    dicom_path = "C:/Users/YangLiangZhu/Desktop/泰州CT模型/0605脊柱实验数据/dicom_data_bad_01"
-    path1 = "C:/Users/YangLiangZhu/Desktop/泰州精度验证/Tai0605/1/CT-MP25075-250605-yan/S3010"
-    path5_1 = "C:/Users/YangLiangZhu/Desktop/泰州精度验证/Tai0606/5/CT-MP25080-250606-yan/S7010"  # z轴偏了
-    
-    dicom_path1 = "C:/Users/huang/Downloads/泰州精度验证/泰州精度验证/Tai0606/5/CT-MP25080-250606-gui/S6010"
+
+    dicom_path = "C:/Users/huang/Downloads/dicom_data_bad_01"
+    # dicom_path = "C:/Users/huang/spine/dataStore/dicom_data"
+    # dicom_path1 = "C:/Users/huang/Downloads/泰州精度验证/泰州精度验证/Tai0606/8/dicom_data8_yan"
     dicom_files = []
-    for root, dirs, files in os.walk(dicom_path1):
+    for root, dirs, files in os.walk(dicom_path):
         for file in files:
             if file.endswith('.dcm'):
                 dicom_files.append(os.path.join(root, file))
@@ -281,22 +288,14 @@ if __name__ == '__main__':
             print(f"❌ 读取失败: {f}, 错误: {e}")
     slices.sort(key=lambda x: float(x.ImagePositionPatient[2]))
     data = np.stack([s.pixel_array for s in slices])
-    data = np.flip(data, axis=0)
-    x, y, z = data.shape
 
     pixel_spacing = slices[0].PixelSpacing  # x,y轴间隔
     if hasattr(slices[0], 'SpacingBetweenSlices'):  # Z轴间隔
         thickness = slices[0].SpacingBetweenSlices
     else:
         thickness = abs(slices[1].ImagePositionPatient[2] - slices[0].ImagePositionPatient[2])
+    pos_ori = slices[-1].ImagePositionPatient
 
-    
-    pos_ori = slices[-1].ImagePositionPatient  # 原点
+    spheres = detect_spheres_from_dicom(data=data, pixel_spacing=pixel_spacing, thickness=thickness, pos_ori=pos_ori, output_points=10)
+    print(np.array(spheres))
 
-    spheres, p_bounds = detect_spheres_from_dicom(data=data, pixel_spacing=pixel_spacing, thickness=thickness, pos_ori=pos_ori, num_spheres=10)
-    print("Detected spheres:")
-    print(spheres)
-    # for key, value in p_bounds.items():
-    #     print(key)
-    #     print(value)
-    
